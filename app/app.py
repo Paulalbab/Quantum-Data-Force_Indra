@@ -4,61 +4,42 @@ import plotly.express as px
 import os
 import joblib
 
-# 1. CONFIGURACIÓN
 st.set_page_config(page_title="Quantum Data Force | UPTC", page_icon="⚡", layout="wide")
 
-st.title("⚡ Inteligencia Energética UPTC (2018 - 2025)")
-st.markdown("**Análisis de Tendencias e IA** | Modelo v3")
-
-# 2. CARGA DE DATOS
+# CARGA DE DATOS
 @st.cache_data
 def load_data():
     base_path = os.path.dirname(__file__)
-    # Ruta al ZIP en la carpeta datos
     file_path = os.path.join(base_path, '../datos/consumos_uptc.zip')
     try:
         df = pd.read_csv(file_path, compression='zip')
         df['timestamp'] = pd.to_datetime(df['timestamp'])
-        # Aseguramos que existan columnas numéricas para las sedes
-        if 'sede' in df.columns:
-            df['sede_n'] = df['sede'].astype('category').cat.codes
+        # Generar códigos de sede consistentes con el entrenamiento
+        df['sede_n'] = df['sede'].astype('category').cat.codes
         return df
-    except Exception as e:
-        st.error(f"Error al cargar datos: {e}")
-        return None
+    except: return None
 
 df = load_data()
 
 if df is not None:
-    # --- PANEL LATERAL ---
-    st.sidebar.header("🕹️ Controles")
+    st.title("⚡ Dashboard Energético UPTC (2018-2025)")
+    
+    # SIDEBAR
     sede_selec = st.sidebar.selectbox("Selecciona Sede:", df['sede'].unique())
-    vista = st.sidebar.radio("Resolución histórica:", ["Mensual", "Diaria"])
-    
-    df_sede = df[df['sede'] == sede_selec].copy()
-    
-    # -----------------------------------------------------------------------------
-    # 3. TENDENCIA 2018 - 2025
-    # -----------------------------------------------------------------------------
-    st.subheader(f"📈 Evolución Histórica: {sede_selec}")
-    
-    resample_rule = 'M' if vista == "Mensual" else 'D'
-    # Agrupamos solo columnas numéricas para evitar errores
-    df_hist = df_sede.set_index('timestamp').select_dtypes(include=['number']).resample(resample_rule).mean().reset_index()
+    df_sede = df[df['sede'] == sede_selec]
 
-    fig_hist = px.line(df_hist, x='timestamp', y='energia_total_kwh', 
-                        title=f"Consumo Promedio ({vista})",
-                        color_discrete_sequence=['#1ABC9C'])
-    fig_hist.update_xaxes(rangeslider_visible=True)
-    st.plotly_chart(fig_hist, use_container_width=True)
+    # GRÁFICA HISTÓRICA TOTAL
+    st.subheader(f"📈 Tendencia Histórica: {sede_selec}")
+    df_hist = df_sede.set_index('timestamp').resample('M').mean().reset_index()
+    fig_h = px.line(df_hist, x='timestamp', y='energia_total_kwh', color_discrete_sequence=['#1ABC9C'])
+    fig_h.update_xaxes(rangeslider_visible=True)
+    st.plotly_chart(fig_h, use_container_width=True)
 
-  # -----------------------------------------------------------------------------
-    # 4. SIMULADOR IA v3 (CON SELECCIÓN DE HORA Y DÍA)
-    # -----------------------------------------------------------------------------
+    # SIMULADOR IA v3
     st.markdown("---")
-    st.header("🔮 Simulador Predictivo Personalizado (v3)")
+    st.header(" Simulador de Predicción Detallado")
     
-    model_path = os.path.join(os.path.dirname(__file__), '../modelos/modelo_energia_v3.pkl')
+    model_path = os.path.join(os.path.dirname(__file__), '../modelos/modelo_energia_v3(2).pkl')
     
     if os.path.exists(model_path):
         try:
@@ -66,64 +47,46 @@ if df is not None:
             
             c1, c2 = st.columns([1, 2])
             with c1:
-                st.subheader("Configuración del Escenario")
-                sector_p = st.selectbox("🏢 Sector", ["Comedores", "Salones", "Laboratorios", "Auditorios", "Oficinas"])
+                st.subheader("Configuración")
+                sectores = ["Comedores", "Salones", "Laboratorios", "Auditorios", "Oficinas"]
+                sector_p = st.selectbox("Sector", sectores)
                 
-                # NUEVO: Selección de Día y Hora específica
-                dia_p = st.select_slider("📅 Día de la semana", 
-                                        options=[0, 1, 2, 3, 4, 5, 6],
-                                        value=1,
-                                        format_func=lambda x: ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"][x])
+                # SELECCIÓN DE DÍA Y HORA
+                fecha_p = st.date_input(" Día a predecir", value=pd.to_datetime("2025-05-15"))
+                hora_p = st.slider("Hora a consultar", 0, 23, 10)
                 
-                hora_p = st.slider("⏰ Hora específica para consulta", 0, 23, 10)
-                
-                st.markdown("---")
-                occ_f = st.slider("Ocupación Esperada (%)", 0, 100, 60)
-                temp_f = st.slider("Clima Previsto (°C)", 5, 35, 17)
-            
-            with c2:
-                sede_idx = list(df['sede'].unique()).index(sede_selec)
-                sector_idx = ["Comedores", "Salones", "Laboratorios", "Auditorios", "Oficinas"].index(sector_p)
-                
-                # 1. Predicción puntual para la hora y día seleccionado
-                input_puntual = pd.DataFrame([[hora_p, dia_p, 10, sede_idx, sector_idx, occ_f, temp_f]], 
-                                            columns=['hora', 'dia_semana', 'mes', 'sede_n', 'sector_n', 'ocupacion_pct', 'temperatura_exterior_c'])
-                pred_puntual = model.predict(input_puntual)[0]
+                occ_f = st.slider("Ocupación (%)", 0, 100, 70)
+                temp_f = st.slider("Clima (°C)", 5, 35, 16)
 
-                # 2. Generar datos para la curva de 24 horas del día elegido
+            with c2:
+                # Mapeo de índices
+                sede_idx = list(df['sede'].unique()).index(sede_selec)
+                sector_idx = sectores.index(sector_p)
+                dia_semana = fecha_p.weekday()
+                mes_p = fecha_p.month
+                
+                # Predicción puntual
+                input_pt = pd.DataFrame([[hora_p, dia_semana, mes_p, sede_idx, sector_idx, occ_f, temp_f]], 
+                                       columns=['hora', 'dia_semana', 'mes', 'sede_n', 'sector_n', 'ocupacion_pct', 'temperatura_exterior_c'])
+                res_pt = model.predict(input_pt)[0]
+
+                # Curva 24h
                 horas = list(range(24))
                 preds_24h = []
                 for h in horas:
-                    input_row = pd.DataFrame([[h, dia_p, 10, sede_idx, sector_idx, occ_f, temp_f]], 
-                                            columns=['hora', 'dia_semana', 'mes', 'sede_n', 'sector_n', 'ocupacion_pct', 'temperatura_exterior_c'])
-                    preds_24h.append(model.predict(input_row)[0])
-                
-                # --- MÉTRICAS EN TEXTO ---
-                st.subheader(f"📍 Predicción Puntual ({hora_p}:00)")
-                
-                # Mostramos el dato grande y llamativo
-                st.metric(label=f"Consumo estimado en {sector_p}", 
-                          value=f"{pred_puntual:.2f} kWh",
-                          delta=f"{(pred_puntual - (sum(preds_24h)/24)):+.2f} vs promedio día")
+                    row = pd.DataFrame([[h, dia_semana, mes_p, sede_idx, sector_idx, occ_f, temp_f]], 
+                                      columns=['hora', 'dia_semana', 'mes', 'sede_n', 'sector_n', 'ocupacion_pct', 'temperatura_exterior_c'])
+                    preds_24h.append(model.predict(row)[0])
 
-                # Tarjetas de apoyo
-                m1, m2 = st.columns(2)
-                m1.metric("Pico del día", f"{max(preds_24h):.2f} kWh")
-                m2.metric("Total día estimado", f"{sum(preds_24h):.2f} kWh")
+                # MOSTRAR DATOS ESCRITOS
+                st.subheader(f"Resultado para {fecha_p} a las {hora_p}:00")
+                st.metric("Consumo Predicho", f"{res_pt:.2f} kWh")
+                
+                # Gráfica
+                fig_p = px.area(x=horas, y=preds_24h, title="Proyección 24 Horas",
+                               labels={'x': 'Hora', 'y': 'kWh'}, color_discrete_sequence=['#F1C40F'])
+                fig_p.add_vline(x=hora_p, line_dash="dash", line_color="red")
+                st.plotly_chart(fig_p, use_container_width=True)
 
-                # Gráfica interactiva
-                fig_pred = px.area(x=horas, y=preds_24h, 
-                                   title=f"Curva de Carga para el día seleccionado",
-                                   labels={'x': 'Hora del día', 'y': 'Energía (kWh)'}, 
-                                   color_discrete_sequence=['#F1C40F'])
-                
-                # Añadir una línea vertical roja en la hora seleccionada para que se vea claro
-                fig_pred.add_vline(x=hora_p, line_dash="dash", line_color="red", 
-                                  annotation_text=f"Consulta: {hora_p}:00")
-                
-                st.plotly_chart(fig_pred, use_container_width=True)
-                
-        except Exception as e:
-            st.error(f"Error en el Simulador: {e}")
-    else:
-        st.warning("No se encontró el archivo 'modelo_energia_v3.pkl'.")
+        except Exception as e: st.error(f"Error de lógica: {e}")
+    else: st.warning("Sube el modelo_energia_v3(2).pkl")
