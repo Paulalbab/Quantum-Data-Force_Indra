@@ -53,12 +53,11 @@ if df is not None:
     st.plotly_chart(fig_hist, use_container_width=True)
 
     # -----------------------------------------------------------------------------
-    # 4. SIMULADOR IA v3
+    # 4. SIMULADOR IA v3 (CON DATOS ESCRITOS)
     # -----------------------------------------------------------------------------
     st.markdown("---")
     st.header("🔮 Simulador Predictivo (v3)")
     
-    # Ruta exacta al modelo
     model_path = os.path.join(os.path.dirname(__file__), '../modelos/modelo_energia_v3.pkl')
     
     if os.path.exists(model_path):
@@ -67,30 +66,46 @@ if df is not None:
             
             c1, c2 = st.columns([1, 2])
             with c1:
+                st.subheader("Configuración")
                 sector_p = st.selectbox("🏢 Sector", ["Comedores", "Salones", "Laboratorios", "Auditorios", "Oficinas"])
                 occ_f = st.slider("Ocupación (%)", 0, 100, 60)
-                temp_f = st.slider("Clima (°C)", 5, 35, 17)
+                temp_f = st.slider("Clima Previsto (°C)", 5, 35, 17)
             
             with c2:
                 sede_idx = list(df['sede'].unique()).index(sede_selec)
                 sector_idx = ["Comedores", "Salones", "Laboratorios", "Auditorios", "Oficinas"].index(sector_p)
                 
-                # Predicción 24 horas
                 horas = list(range(24))
                 preds = []
                 for h in horas:
-                    # IMPORTANTE: El orden de columnas debe ser IGUAL al de Colab
-                    # [hora, dia_semana, mes, sede_n, sector_n, ocupacion_pct, temperatura_exterior_c]
                     input_row = pd.DataFrame([[h, 1, 10, sede_idx, sector_idx, occ_f, temp_f]], 
                                             columns=['hora', 'dia_semana', 'mes', 'sede_n', 'sector_n', 'ocupacion_pct', 'temperatura_exterior_c'])
                     preds.append(model.predict(input_row)[0])
                 
-                fig_pred = px.area(x=horas, y=preds, title="Predicción de Consumo (Próximas 24h)",
-                                   labels={'x': 'Hora', 'y': 'kWh'}, color_discrete_sequence=['#F1C40F'])
+                # --- NUEVA SECCIÓN: VALORES ESCRITOS ---
+                st.subheader("📊 Métricas de la Proyección")
+                m1, m2, m3 = st.columns(3)
+                
+                valor_max = max(preds)
+                valor_min = min(preds)
+                total_dia = sum(preds)
+                
+                m1.metric("Consumo Pico", f"{valor_max:.2f} kWh", help="El valor más alto predicho en el día")
+                m2.metric("Consumo Base", f"{valor_min:.2f} kWh", help="El valor más bajo predicho (consumo constante)")
+                m3.metric("Total 24h Est.", f"{total_dia:.2f} kWh", delta=f"{(total_dia/24):.2f} avg/h")
+
+                # Gráfica
+                fig_pred = px.area(x=horas, y=preds, title=f"Curva de Carga Predicha: {sector_p}",
+                                   labels={'x': 'Hora del día', 'y': 'Energía (kWh)'}, 
+                                   color_discrete_sequence=['#F1C40F'])
                 st.plotly_chart(fig_pred, use_container_width=True)
+
+                # Tabla detallada (opcional, por si quieren ver la lista)
+                with st.expander("🔎 Ver desglose hora por hora"):
+                    df_detalles = pd.DataFrame({"Hora": horas, "Predicción (kWh)": preds})
+                    st.dataframe(df_detalles.set_index("Hora"), use_container_width=True)
                 
         except Exception as e:
             st.error(f"Error en el Simulador: {e}")
-            st.info("Revisa que el orden de las columnas en el modelo v3 coincida con el código.")
     else:
         st.warning("No se encontró el archivo 'modelo_energia_v3.pkl' en la carpeta modelos.")
