@@ -92,44 +92,46 @@ import joblib
 
 # predicción
 st.markdown("---")
-st.header("Simulador de Predicción IA")
-st.write("Ajusta los parámetros para predecir el consumo energético usando el modelo entrenado.")
-
-# carga de modelo
-@st.cache_resource
-def cargar_modelo():
-    base_path = os.path.dirname(__file__)
-    modelo_path = os.path.join(base_path, '../modelos/modelo_energia.pkl')
-    return joblib.load(modelo_path)
+st.header(" Simulador de Proyección Energética")
 
 try:
-    model = cargar_modelo()
+    # Cargar el modelo
+    model = joblib.load(os.path.join(os.path.dirname(__file__), '../modelos/modelo_energia_v2.pkl'))
     
-    #contorles de usuario
-    col_pre1, col_pre2, col_pre3 = st.columns(3)
+    col_p1, col_p2 = st.columns(2)
     
-    with col_pre1:
-        h = st.slider("Hora del día", 0, 23, 12)
-        temp = st.slider("Temperatura Exterior (°C)", 5, 35, 18)
+    with col_p1:
+        sede_p = st.selectbox(" Sede a Proyectar", df['sede'].unique())
+        sector_p = st.selectbox(" Sector", ["Laboratorios", "Aulas", "Administrativo", "Biblioteca"])
+        horizonte = st.radio(" Horizonte de tiempo", ["Próximas 24 Horas", "Próxima Semana"])
+
+    with col_p2:
+        # El usuario decide las condiciones futuras
+        occ_futura = st.slider("Estimación de Ocupación (%)", 0, 100, 60)
+        temp_futura = st.slider("Temperatura Prevista (°C)", 5, 30, 15)
+
+    # cálculo
+    sede_code = list(df['sede'].unique()).index(sede_p)
     
-    with col_pre2:
-        occ = st.slider("Nivel de Ocupación (%)", 0, 100, 50)
-        mes_n = st.selectbox("Mes", range(1, 13), index=9)
+    if horizonte == "Próximas 24 Horas":
+        # predicción para cada hora del día
+        horas = list(range(24))
+        preds = [model.predict(pd.DataFrame([[h, 1, 10, sede_code, occ_futura, temp_futura]], 
+                 columns=['hora', 'dia_semana', 'mes', 'sede_n', 'ocupacion_pct', 'temperatura_exterior_c']))[0] for h in horas]
         
-    with col_pre3:
-        dia_n = st.selectbox("Día de la semana", range(7), format_func=lambda x: ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"][x])
-
-    # predicción
-    input_data = pd.DataFrame([[h, dia_n, mes_n, occ, temp]], 
-                              columns=['hora', 'dia_semana', 'mes', 'ocupacion_pct', 'temperatura_exterior_c'])
-    
-    prediccion = model.predict(input_data)[0]
-
-    # visualización de resultado
-    st.subheader(f"Resultado de la Predicción: {prediccion:.2f} kWh")
-    
-    # Comparación con promedio real
-    st.info(f"Este valor representa el consumo estimado para la configuración seleccionada.")
+        fig_pred = px.area(x=horas, y=preds, title=f"Predicción horaria para {sede_p} - {sector_p}",
+                          labels={'x': 'Hora', 'y': 'kWh'}, color_discrete_sequence=['#F39C12'])
+        st.plotly_chart(fig_pred, use_container_width=True)
+        
+    else:
+        # Predicción para los 7 días
+        dias = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]
+        preds_dias = [model.predict(pd.DataFrame([[12, d, 10, sede_code, occ_futura, temp_futura]], 
+                      columns=['hora', 'dia_semana', 'mes', 'sede_n', 'ocupacion_pct', 'temperatura_exterior_c']))[0] * 24 for d in range(7)]
+        
+        fig_pred = px.bar(x=dias, y=preds_dias, title=f"Proyección Semanal para {sede_p}",
+                          labels={'x': 'Día', 'y': 'Consumo Total Estimado (kWh)'}, color_discrete_sequence=['#E67E22'])
+        st.plotly_chart(fig_pred, use_container_width=True)
 
 except Exception as e:
-    st.warning("El modelo de predicción se está cargando o no se encuentra en la carpeta /modelos.")
+    st.info(" Sube el 'modelo_energia_v2.pkl' a la carpeta modelos para activar el desglose por sede y sector.")
