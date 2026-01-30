@@ -37,7 +37,7 @@ def load_data():
 @st.cache_resource
 def load_model():
     base_path = os.path.dirname(__file__)
-    model_path = os.path.join(base_path, '../modelos/modelo_energia_v3(2).pkl')
+    model_path = os.path.join(base_path, '../modelos/modelo_energia_v3 (2).pkl')
     if os.path.exists(model_path):
         return joblib.load(model_path)
     return None
@@ -139,7 +139,7 @@ if df is not None:
             st.error(f"Error en la predicción: {e}")
             st.info("Asegúrate de que el modelo v3 esté correctamente cargado.")
     else:
-        st.warning(" No se detectó el archivo 'modelo_energia_v3 (2).pkl' en la carpeta /modelos.")
+        st.warning(" No se detectó el archivo 'modelo_energia_v3(2).pkl' en la carpeta /modelos.")
 
 else:
     st.error(" No se pudo conectar con la base de datos en /datos/consumos_uptc.zip")
