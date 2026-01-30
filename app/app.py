@@ -7,7 +7,7 @@ import os
 st.set_page_config(page_title="Quantum Data Force", layout="wide", page_icon="⚡")
 
 st.title("⚡ Monitor Energético UPTC - IA Minds 2026")
-st.markdown("**Estado del Sistema:** 🟢 En línea | **Fuente de Datos:** Repositorio Seguro")
+st.markdown("**Estado del Sistema:** En línea | **Fuente de Datos:** Repositorio Seguro")
 
 # cargar zip a csv
 @st.cache_data
