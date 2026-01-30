@@ -52,7 +52,7 @@ if df is not None:
     fig_hist.update_xaxes(rangeslider_visible=True)
     st.plotly_chart(fig_hist, use_container_width=True)
 
-   # -----------------------------------------------------------------------------
+  # -----------------------------------------------------------------------------
     # 4. SIMULADOR IA v3 (CON SELECCIÓN DE HORA Y DÍA)
     # -----------------------------------------------------------------------------
     st.markdown("---")
