@@ -3,3 +3,6 @@ pandas
 plotly
 scikit-learn
 joblib
+shap
+xgboost
+pillow
