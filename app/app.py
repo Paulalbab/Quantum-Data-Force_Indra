@@ -37,7 +37,7 @@ def load_data():
 @st.cache_resource
 def load_model():
     base_path = os.path.dirname(__file__)
-    model_path = os.path.join(base_path, '../modelos/modelo_energia_v3 (2).pkl')
+    model_path = os.path.join(base_path, '../modelos/modelo_energia_v4.pkl')
     if os.path.exists(model_path):
         return joblib.load(model_path)
     return None
@@ -71,10 +71,10 @@ if df is not None:
     st.plotly_chart(fig_h, use_container_width=True)
 
     # -----------------------------------------------------------------------------
-    # 4. SIMULADOR PREDICTIVO IA (v3)
+    # 4. PREDICCIÓN
     st.markdown("---")
     st.header(" Simulador de Predicción IA")
-    st.markdown("Proyección detallada por sector, lugar y tiempo utilizando el Modelo v3.")
+    st.markdown("Proyección detallada por sector, lugar y tiempo utilizando el Modelo v4.")
 
     if model is not None:
         try:
@@ -88,7 +88,7 @@ if df is not None:
                 # Selector de Fecha
                 fecha_p = st.date_input(" Selecciona el día a simular", value=pd.to_datetime("2025-06-10"))
                 
-                # Selector de Hora para consulta escrita
+                # Selector de Hora 
                 hora_p = st.slider("Consultar hora específica", 0, 23, 10)
                 
                 # Variables ambientales
@@ -106,7 +106,7 @@ if df is not None:
                 horas = list(range(24))
                 preds_24h = []
                 for h in horas:
-                    # Orden: [hora, dia_semana, mes, sede_n, sector_n, ocupacion_pct, temperatura_exterior_c]
+                    
                     input_row = pd.DataFrame([[h, dia_w, mes_p, sede_idx, sector_idx, occ_f, temp_f]], 
                                             columns=['hora', 'dia_semana', 'mes', 'sede_n', 'sector_n', 'ocupacion_pct', 'temperatura_exterior_c'])
                     preds_24h.append(model.predict(input_row)[0])
@@ -137,9 +137,9 @@ if df is not None:
 
         except Exception as e:
             st.error(f"Error en la predicción: {e}")
-            st.info("Asegúrate de que el modelo v3 esté correctamente cargado.")
+            st.info("Asegúrate de que el modelo v4 esté correctamente cargado.")
     else:
-        st.warning(" No se detectó el archivo 'modelo_energia_v3(2).pkl' en la carpeta /modelos.")
+        st.warning(" No se detectó el archivo 'modelo_energia_v4.pkl' en la carpeta /modelos.")
 
 else:
     st.error(" No se pudo conectar con la base de datos en /datos/consumos_uptc.zip")
